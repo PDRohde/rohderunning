@@ -1,5 +1,3 @@
-# scripts/build_site.R
-
 library(readxl)
 library(dplyr)
 library(knitr)
@@ -8,13 +6,18 @@ library(scales)
 # ---- LOAD DATA ----
 
 plan <- read_excel("data/training_plan.xlsx", sheet = 1)
-week <- read_excel("data/training_plan.xlsx", sheet = 2)
+
+week <- read_excel(
+  "data/training_plan.xlsx",
+  sheet = 2,
+  range = "A1:F8"
+)
 
 # ---- CALCULATIONS ----
 
 week_km <- sum(week$`Plan km`, na.rm = TRUE)
 
-target_km <- plan$Target_km[1]  # eller vælg aktiv uge hvis du har ugenummer
+target_km <- plan$`Planlagt km`[1]
 
 status <- case_when(
   week_km > target_km + 10 ~ "⚠️ Overload",
@@ -24,7 +27,7 @@ status <- case_when(
 
 progress <- week_km / target_km
 
-# ---- COLOR FUNCTION ----
+# ---- TYPE COLORS ----
 
 color_type <- function(type) {
   case_when(
@@ -37,7 +40,7 @@ color_type <- function(type) {
 
 week$color <- color_type(week$Type)
 
-# ---- BUILD TABLE WITH COLORS ----
+# ---- BUILD TABLE ----
 
 week_html <- "<table><tr>"
 cols <- colnames(week)
@@ -79,10 +82,10 @@ progress_bar <- paste0(
   "</div>"
 )
 
-# ---- BUILD HTML ----
+# ---- HTML ----
 
 html <- paste0(
-"
+  "
 <!DOCTYPE html>
 <html>
 <head>
@@ -90,7 +93,6 @@ html <- paste0(
 <title>Mors 100 Miles Dashboard</title>
 <style>
 body { font-family: Arial; margin: 40px; background:#f9f9f9; }
-h1 { color: #2c3e50; }
 .card {
   background:white;
   padding:20px;

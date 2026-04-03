@@ -55,38 +55,51 @@ today_name <- weekdays(Sys.Date())
 
 week$Today <- ifelse(week$Dag == today_name, TRUE, FALSE)
 
-# ---- FILTER VISNING ----
-
+# ---- FIND AKTUEL UGE ----
 current_week <- which(plan$current)
 
 if (length(current_week) == 0) {
   if (today < min(plan$Startdato_date)) {
-    # Før planen starter
     current_week <- 1
   } else {
-    # Efter planen er slut
     current_week <- nrow(plan)
   }
 }
 
-# 1. Vælg relevante rækker først
-plan_view <- plan[idx_start:idx_end, ]
-plan_view$Aktuel <- ""
+# ---- FIND BLOK (fase → recovery) ----
+current_phase <- plan$Fase[current_week]
 
-# 2. Tilføj aktuel markering
-plan_view$Aktuel <- ifelse(
-  (idx_start:idx_end) == current_week,
-  "➡️",
-  ""
+# alle uger i samme fase
+phase_idx <- which(plan$Fase == current_phase)
+
+# find næste recovery EFTER fasen
+recovery_idx <- which(
+  grepl("Recovery", plan$Fase) & (1:nrow(plan)) > max(phase_idx)
 )
 
-# 3. Vælg kun de kolonner du vil vise
-plan_view <- plan_view %>%
+if (length(recovery_idx) > 0) {
+  idx_end <- recovery_idx[1]
+} else {
+  idx_end <- max(phase_idx)
+}
+
+idx_start <- min(phase_idx)
+
+# ---- BUILD plan_view ----
+plan_view <- plan[idx_start:idx_end, ] %>%
+  mutate(
+    Aktuel = ifelse(
+      row_number() + idx_start - 1 == current_week,
+      "➡️",
+      ""
+    )
+  ) %>%
   select(
     Aktuel,
     Uge,
     Startdato_vis,
     Fase,
+    phase_color,
     `Planlagt km`,
     KS1,
     KS2,
@@ -94,7 +107,13 @@ plan_view <- plan_view %>%
     `Fast finish`
   )
 
-# 4. Rename
+# gem farver
+phase_colors <- plan_view$phase_color
+
+# fjern fra visning
+plan_view <- plan_view %>% select(-phase_color)
+
+# rename
 colnames(plan_view) <- c(
   "Aktuel",
   "Uge",
@@ -106,6 +125,23 @@ colnames(plan_view) <- c(
   "Long/B2B",
   "Fast"
 )
+
+cols_plan <- colnames(plan_view)
+
+block_progress <- (current_week - idx_start + 1) / (idx_end - idx_start + 1)
+block_progress <- max(0, min(block_progress, 1))  # safety
+
+block_bar <- paste0(
+  "<div style='margin:8px 0 12px 0;'>",
+  "<div style='font-size:12px; color:#666;'>Progress i blok</div>",
+  "<div style='background:#eee; height:8px; border-radius:6px;'>",
+  "<div style='width:", percent(block_progress), ";
+       background:linear-gradient(90deg,#3498db,#6dd5fa);
+       height:8px;
+       border-radius:6px;'></div>",
+  "</div></div>"
+)
+
 
 # ---- CALCULATIONS ----
 
@@ -241,8 +277,8 @@ ggsave(
 
 # ---- BUILD TABLE ----
 
+#--- WEEK VIEW
 week_html <- "<table><tr>"
-#cols <- colnames(week_display)
 cols <- c("Dag", "Plan km", "Faktisk km", "Type", "Styrke", "Mobilitet")
 
 for (c in cols) {
@@ -282,8 +318,8 @@ for (i in 1:nrow(week)) {
 
 week_html <- paste0(week_html, "</table>")
 
+#--- PLAN VIEW
 
-#----
 plan_html <- "<table><tr>"
 cols_plan <- colnames(plan_view)
 
@@ -291,14 +327,22 @@ for (c in cols_plan) {
   plan_html <- paste0(plan_html, "<th>", c, "</th>")
 }
 plan_html <- paste0(plan_html, "</tr>")
+
 for (i in 1:nrow(plan_view)) {
   
-  # Highlight aktuel uge
-  row_style <- ifelse(
-    plan_view$Aktuel[i] == "⬅️",
-    "style='background:#e8f6ff; font-weight:600;'",
-    ""
-  )
+  global_idx <- idx_start + i - 1
+  
+  row_style <- ""
+  
+  # Fremtidige uger (fade)
+  if (global_idx > current_week) {
+    row_style <- "style='opacity:0.5;'"
+  }
+  
+  # Aktuel uge (override)
+  if (plan_view$Aktuel[i] == "➡️") {
+    row_style <- "style='background:#e8f6ff; font-weight:600;'"
+  }
   
   plan_html <- paste0(plan_html, "<tr ", row_style, ">")
   
@@ -309,12 +353,14 @@ for (i in 1:nrow(plan_view)) {
       plan_html <- paste0(
         plan_html,
         "<td><span style='
-          background:", plan$phase_color[idx_start + i - 1], ";
-          color:white;
-          padding:4px 10px;
-          border-radius:12px;
-          font-size:12px;
-        '>", value, "</span></td>"
+  display:inline-block;
+  background:", phase_colors[i], ";
+  color:white;
+  padding:4px 10px;
+  border-radius:12px;
+  font-size:12px;
+  font-weight:600;
+'>", value, "</span></td>"
       )
     } else {
       plan_html <- paste0(plan_html, "<td>", value, "</td>")
@@ -323,6 +369,7 @@ for (i in 1:nrow(plan_view)) {
   
   plan_html <- paste0(plan_html, "</tr>")
 }
+
 plan_html <- paste0(plan_html, "</table>")
 
 # ---- PROGRESS BAR ----
@@ -505,7 +552,8 @@ th {
 
 <div class='card'>
 <h2>Overordnet plan</h2>
-", knitr::kable(plan_view, format = "html"), "
+", block_bar, "
+", plan_html, "
 </div>
 
 <div class='card'>

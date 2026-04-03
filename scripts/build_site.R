@@ -6,6 +6,8 @@ library(scales)
 # ---- LOAD DATA ----
 
 plan <- read_excel("data/training_plan.xlsx", sheet = 1)
+plan$Startdato_date <- as.Date(plan$Startdato)
+plan$Startdato_vis <- format(plan$Startdato_date, "%d-%m-%Y")
 
 week <- read_excel(
   "data/training_plan.xlsx",
@@ -13,9 +15,76 @@ week <- read_excel(
   range = "A1:F8"
 )
 
+week$Type <- case_when(
+  week$Type == "Easy" ~ "Easy run",
+  week$Type == "Key1" ~ "Kvalitet",
+  week$Type == "Key2" ~ "Kvalitet",
+  week$Type == "Long" ~ "Langtur",
+  week$Type == "B2B" ~ "Back-to-back",
+  TRUE ~ week$Type
+)
+
+week$effort_color <- case_when(
+  week$Type == "Easy run" ~ "#2ecc71",     # grøn
+  week$Type == "Kvalitet" ~ "#c0392b",     # rød
+  week$Type == "Langtur" ~ "#3498db",      # blå
+  week$Type == "Back-to-back" ~ "#3498db", # blå
+  TRUE ~ "#7f8c8d"                         # fallback grå
+)
+
+# ---- FIND AKTUEL UGE ----
+today <- Sys.Date()
+
+plan <- plan %>%
+  mutate(
+    current = today >= Startdato_date & today < (Startdato_date + 7)
+  )
+
+# ---- FILTER VISNING ----
+current_week <- which(plan$current)
+
+# fallback hvis ingen uge matcher (sker hvis dato er udenfor range)
+if (length(current_week) == 0) {
+  current_week <- 1
+}
+
+# 1. Vælg relevante rækker først
+plan_view <- plan[idx_start:idx_end, ]
+
+# 2. Tilføj aktuel markering
+plan_view$Aktuel <- ifelse(plan_view$current, "⬅️", "")
+
+# 3. Vælg kun de kolonner du vil vise
+plan_view <- plan_view %>%
+  select(
+    Aktuel,
+    Uge,
+    Startdato_vis,
+    Fase,
+    `Planlagt km`,
+    KS1,
+    KS2,
+    Long,
+    `Fast finish`
+  )
+
+# 4. Rename
+colnames(plan_view) <- c(
+  "",
+  "Uge",
+  "Start",
+  "Fase",
+  "Km",
+  "KS1",
+  "KS2",
+  "Long/B2B",
+  "Fast"
+)
+
 # ---- CALCULATIONS ----
 
 week_km <- sum(week$`Plan km`, na.rm = TRUE)
+actual_km <- sum(week$`Faktisk km`, na.rm = TRUE)
 
 target_km <- plan$`Planlagt km`[1]
 
@@ -39,11 +108,12 @@ color_type <- function(type) {
 }
 
 week$color <- color_type(week$Type)
+week_display <- week %>% select(-color)
 
 # ---- BUILD TABLE ----
 
 week_html <- "<table><tr>"
-cols <- colnames(week)
+cols <- colnames(week_display)
 
 for (c in cols) {
   week_html <- paste0(week_html, "<th>", c, "</th>")
@@ -54,14 +124,18 @@ for (i in 1:nrow(week)) {
   week_html <- paste0(week_html, "<tr>")
   
   for (c in cols) {
-    value <- week[i, c]
+    value <- week_display[i, c]
     
     if (c == "Type") {
       week_html <- paste0(
         week_html,
-        "<td style='background:", week$color[i], "; color:white;'>",
-        value,
-        "</td>"
+        "<td><span style='
+      background:", week$effort_color[i], ";
+      color:white;
+      padding:4px 10px;
+      border-radius:12px;
+      font-size:12px;
+    '>", value, "</span></td>"
       )
     } else {
       week_html <- paste0(week_html, "<td>", value, "</td>")
@@ -111,9 +185,8 @@ h1 {
 
 .grid {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 20px;
-  margin-bottom: 20px;
 }
 
 .card {
@@ -160,6 +233,52 @@ th {
   height: 10px;
   border-radius: 10px;
 }
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin-top: 10px;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+tr:nth-child(even) {
+  background-color: #fafafa;
+}
+
+tr:hover {
+  background-color: #f1f1f1;
+}
+
+td {
+  padding: 10px;
+}
+
+th {
+  padding: 10px;
+  background: #f8f9fb;
+  font-weight: 600;
+}
+
+.table-container {
+  overflow-x: auto;
+  margin-top: 10px;
+}
+
+.table-container table {
+  min-width: 900px;
+}
+
+table {
+  font-size: 13px;
+}
+
+th {
+  position: sticky;
+  top: 0;
+  background: #f8f9fb;
+  z-index: 1;
+}
 </style>
 
 </head>
@@ -180,6 +299,11 @@ th {
     <div class='big'>", target_km, "</div>
   </div>
 
+<div class='card'>
+  <div>Faktisk km</div>
+  <div class='big'>", round(actual_km,1), "</div>
+</div>
+
   <div class='card'>
     <div>Status</div>
     <div class='big'>", status, "</div>
@@ -198,10 +322,14 @@ th {
 ", week_html, "
 </div>
 
+
+
 <div class='card'>
 <h2>Overordnet plan</h2>
-", knitr::kable(plan, format = "html"), "
+", knitr::kable(plan_view, format = "html"), "
 </div>
+
+
 
 </div>
 

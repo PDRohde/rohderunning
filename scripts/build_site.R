@@ -91,40 +91,118 @@ html <- paste0(
 <head>
 <meta charset='UTF-8'>
 <title>Mors 100 Miles Dashboard</title>
+
 <style>
-body { font-family: Arial; margin: 40px; background:#f9f9f9; }
-.card {
-  background:white;
-  padding:20px;
-  margin-bottom:20px;
-  border-radius:10px;
-  box-shadow:0px 2px 6px rgba(0,0,0,0.1);
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto;
+  background: #f5f7fa;
+  margin: 0;
+  padding: 20px;
 }
-table { border-collapse: collapse; width:100%; }
-th, td { border: 1px solid #ddd; padding: 6px; text-align:center; }
-th { background: #f4f4f4; }
+
+h1 {
+  margin-bottom: 10px;
+}
+
+.container {
+  max-width: 1100px;
+  margin: auto;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.card {
+  background: white;
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+}
+
+.big {
+  font-size: 28px;
+  font-weight: bold;
+}
+
+.status-ok { color: #27ae60; }
+.status-warn { color: #e67e22; }
+.status-bad { color: #e74c3c; }
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin-top: 10px;
+}
+
+th, td {
+  padding: 8px;
+  border-bottom: 1px solid #eee;
+  text-align: center;
+}
+
+th {
+  background: #fafafa;
+}
+
+.progress {
+  background: #eee;
+  border-radius: 10px;
+  height: 10px;
+  margin-top: 10px;
+}
+
+.progress-bar {
+  background: #27ae60;
+  height: 10px;
+  border-radius: 10px;
+}
 </style>
+
 </head>
 <body>
 
-<h1>🏃‍♂️ Mors 100 Miles – Dashboard</h1>
+<div class='container'>
 
-<div class='card'>
-<h2>📊 Uge status</h2>
-<p><b>Planlagt km:</b> ", round(week_km,1), "</p>
-<p><b>Mål:</b> ", target_km, "</p>
-<p><b>Status:</b> ", status, "</p>
-", progress_bar, "
+<h1>🏃‍♂️ Mors 100 Miles</h1>
+
+<div class='grid'>
+  <div class='card'>
+    <div>Planlagt km</div>
+    <div class='big'>", round(week_km,1), "</div>
+  </div>
+
+  <div class='card'>
+    <div>Mål</div>
+    <div class='big'>", target_km, "</div>
+  </div>
+
+  <div class='card'>
+    <div>Status</div>
+    <div class='big'>", status, "</div>
+  </div>
 </div>
 
 <div class='card'>
-<h2>📅 Aktuel uge</h2>
+  <div>Progress</div>
+  <div class='progress'>
+    <div class='progress-bar' style='width:", percent(progress), ";'></div>
+  </div>
+</div>
+
+<div class='card'>
+<h2>Aktuel uge</h2>
 ", week_html, "
 </div>
 
 <div class='card'>
-<h2>📈 Overordnet plan</h2>
+<h2>Overordnet plan</h2>
 ", knitr::kable(plan, format = "html"), "
+</div>
+
 </div>
 
 </body>

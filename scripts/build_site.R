@@ -143,6 +143,27 @@ block_bar <- paste0(
 )
 
 
+# ---- FULL PLAN (til fold-ud) ----
+full_plan <- plan %>%
+  mutate(
+    Aktuel = ifelse(row_number() == current_week, "➡️", "")
+  ) %>%
+  select(
+    Aktuel,
+    Uge,
+    Startdato_vis,
+    Fase,
+    `Planlagt km`,
+    KS1,
+    KS2,
+    Long,
+    `Fast finish`
+  )
+
+colnames(full_plan) <- colnames(plan_view)
+
+full_plan_html <- knitr::kable(full_plan, format = "html")
+
 # ---- CALCULATIONS ----
 
 week_km <- sum(week$`Plan km`, na.rm = TRUE)
@@ -266,29 +287,38 @@ p_week <- ggplot(week, aes(x = Dag)) +
     linetype = "dotted"
   )
 
-# ---- FAKTISK DATA (uden NA) ----
+# ---- FAKTISK DATA ----
 week_actual <- week[!is.na(week$cum_faktisk), ]
 
-# kun hvis vi har data
 if (nrow(week_actual) > 0) {
   
-  # punkter (altid)
+  # lav startpunkt med samme kolonner
+  start_df <- week_actual[1, ]
+  start_df$cum_faktisk <- 0
+  start_df$Dag <- levels(week$Dag)[1]
+  
+  # kombiner
+  week_plot <- rbind(start_df, week_actual)
+  
+  # linje
+  if (nrow(week_plot) > 1) {
+    p_week <- p_week +
+      geom_line(
+        data = week_plot,
+        aes(x = Dag, y = cum_faktisk, group = 1),
+        linewidth = 2,
+        color = "#2ecc71"
+      )
+  }
+  
+  # punkter
   p_week <- p_week +
     geom_point(
       data = week_actual,
-      aes(y = cum_faktisk, color = status),
-      size = 2.5
+      aes(x = Dag, y = cum_faktisk),
+      size = 3,
+      color = "#2ecc71"
     )
-  
-  # linje (kun hvis >1 punkt)
-  if (nrow(week_actual) > 1) {
-    p_week <- p_week +
-      geom_line(
-        data = week_actual,
-        aes(y = cum_faktisk, color = status, group = 1),
-        linewidth = 1.8
-      )
-  }
 }
 
 # ---- "I DAG" MARKERING ----
@@ -298,21 +328,23 @@ if (nrow(today_point) > 0) {
   p_week <- p_week +
     geom_point(
       data = today_point,
-      aes(y = cum_faktisk),
+      aes(x = Dag, y = cum_faktisk),
       size = 4,
       color = "black"
+    )
+  
+  # area (inde i if)
+  p_week <- p_week +
+    geom_area(
+      data = week_plot,
+      aes(x = Dag, y = cum_faktisk, group = 1),
+      fill = "#2ecc71",
+      alpha = 0.1
     )
 }
 
 # ---- STYLING ----
 p_week <- p_week +
-  scale_color_manual(
-    values = c(
-      "ahead" = "#2ecc71",
-      "behind" = "#e74c3c",
-      "future" = "#bdc3c7"
-    )
-  ) +
   scale_y_continuous(limits = c(0, NA)) +
   
   theme_minimal(base_size = 12) +
@@ -328,13 +360,6 @@ p_week <- p_week +
     y = "Km"
   )
 
-# ---- SAVE ----
-ggsave(
-  "docs/week_progress.svg",
-  p_week,
-  width = 8,
-  height = 4
-)
 ggsave(
   "docs/week_progress.svg",
   p_week,
@@ -445,20 +470,48 @@ legend_html <- paste0(
   padding:12px;
   background:#f8f9fb;
   border-radius:10px;
-  font-size:13px;
-  line-height:1.5;
 '>
 
-<b>Træningstyper</b><br><br>
+<b style='display:block; margin-bottom:8px;'>Træningstyper</b>
 
-<span style='color:#2ecc71;'>●</span> <b>Easy run</b><br>
-<small>Let, Z2, volumen</small><br><br>
+<div style='display:flex; gap:10px; flex-wrap:wrap;'>
 
-<span style='color:#e74c3c;'>●</span> <b>Kvalitet</b><br>
-<small>Tempo/intervaller (Z4)</small><br><br>
+  <span style='
+    background:#2ecc71;
+    color:white;
+    padding:6px 12px;
+    border-radius:20px;
+    font-size:12px;
+    font-weight:600;
+  '>Easy run</span>
 
-<span style='color:#3498db;'>●</span> <b>Langtur</b><br>
-<small>Lang, rolig, udholdenhed</small><br>
+  <span style='
+    background:#e74c3c;
+    color:white;
+    padding:6px 12px;
+    border-radius:20px;
+    font-size:12px;
+    font-weight:600;
+  '>Kvalitet</span>
+
+  <span style='
+    background:#3498db;
+    color:white;
+    padding:6px 12px;
+    border-radius:20px;
+    font-size:12px;
+    font-weight:600;
+  '>Langtur</span>
+
+</div>
+
+<div style='margin-top:10px; font-size:12px; color:#666;'>
+
+Easy: Z2 volumen ·  
+Kvalitet: Z4 tempo/intervaller ·  
+Langtur: rolig udholdenhed
+
+</div>
 
 </div>"
 )
@@ -491,6 +544,10 @@ body {
   background: #f5f7fa;
   margin: 0;
   padding: 20px;
+}
+
+details[open] summary {
+  margin-bottom: 10px;
 }
 
 h1 {
@@ -655,8 +712,22 @@ th {
 
 <div class='card'>
 <h2>Overordnet plan</h2>
+
 ", block_bar, "
+
 ", plan_html, "
+
+<details style='margin-top:15px;'>
+  <summary style='cursor:pointer; font-weight:600; padding:8px; background:#f1f3f5; border-radius:8px;'>
+    📅 Vis hele træningsplanen
+  </summary>
+
+  <div style='margin-top:10px; max-height:400px; overflow-y:auto; border:1px solid #eee; border-radius:8px; padding:10px;'>
+    ", full_plan_html, "
+  </div>
+
+</details>
+
 </div>
 
 <div class='card'>

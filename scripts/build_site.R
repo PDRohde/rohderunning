@@ -187,10 +187,15 @@ week_display <- week %>%
 # ---- DATA ----
 week <- week %>%
   mutate(
-    faktisk_km = replace_na(`Faktisk km`, 0),
     plan_km = replace_na(`Plan km`, 0),
-    cum_faktisk = cumsum(faktisk_km),
-    cum_plan = cumsum(plan_km)
+    cum_plan = cumsum(plan_km),
+    
+    faktisk_km = `Faktisk km`,
+    
+    cum_faktisk_raw = cumsum(ifelse(is.na(faktisk_km), 0, faktisk_km)),
+    
+    # skjul fremtidige dage
+    cum_faktisk = ifelse(row_number() <= today_idx, cum_faktisk_raw, NA)
   )
 
 # rækkefølge
@@ -212,41 +217,95 @@ week <- week %>%
   )
 
 # ---- PLOT ----
+# ---- DATA ----
+week <- week %>%
+  mutate(
+    plan_km = replace_na(`Plan km`, 0),
+    cum_plan = cumsum(plan_km),
+    
+    faktisk_km = `Faktisk km`,
+    
+    cum_faktisk_raw = cumsum(ifelse(is.na(faktisk_km), 0, faktisk_km))
+  )
+
+# rækkefølge
+week$Dag <- factor(
+  week$Dag,
+  levels = c("Mandag","Tirsdag","Onsdag","Torsdag","Fredag","Lørdag","Søndag")
+)
+
+# ---- FIND "I DAG" ----
+today_idx <- ifelse(any(week$Today), max(which(week$Today)), 1)
+
+# ---- STATUS + VISNING ----
+week <- week %>%
+  mutate(
+    cum_faktisk = ifelse(row_number() <= today_idx, cum_faktisk_raw, NA),
+    
+    status = case_when(
+      row_number() > today_idx ~ "future",
+      cum_faktisk >= cum_plan ~ "ahead",
+      TRUE ~ "behind"
+    )
+  )
+
+# ---- BASE PLOT ----
 p_week <- ggplot(week, aes(x = Dag)) +
   
-  # plan (stiplet)
+  # PLAN (stiplet)
   geom_line(
-    aes(y = cum_plan, group=1),
+    aes(y = cum_plan, group = 1),
     linetype = "dashed",
     linewidth = 1,
-    color = "black"
-  ) +
-  
-  # faktisk (farvet)
-  geom_line(
-    aes(y = cum_faktisk, color = status, group = 1),
-    linewidth = 1.5
-  ) +
-  
-  geom_point(
-    aes(y = cum_faktisk, color = status, group = 1),
-    size = 2.5
+    color = "#555555"
   ) +
   
   # mål-linje
   geom_hline(
     yintercept = target_km,
     linetype = "dotted"
-  ) +
+  )
+
+# ---- FAKTISK DATA (uden NA) ----
+week_actual <- week[!is.na(week$cum_faktisk), ]
+
+# kun hvis vi har data
+if (nrow(week_actual) > 0) {
   
-  # i dag
-  geom_point(
-    data = subset(week, Today == TRUE),
-    aes(y = cum_faktisk,group = 1),
-    size = 4,
-    color = "black"
-  ) +
+  # punkter (altid)
+  p_week <- p_week +
+    geom_point(
+      data = week_actual,
+      aes(y = cum_faktisk, color = status),
+      size = 2.5
+    )
   
+  # linje (kun hvis >1 punkt)
+  if (nrow(week_actual) > 1) {
+    p_week <- p_week +
+      geom_line(
+        data = week_actual,
+        aes(y = cum_faktisk, color = status, group = 1),
+        linewidth = 1.8
+      )
+  }
+}
+
+# ---- "I DAG" MARKERING ----
+today_point <- week[week$Today == TRUE & !is.na(week$cum_faktisk), ]
+
+if (nrow(today_point) > 0) {
+  p_week <- p_week +
+    geom_point(
+      data = today_point,
+      aes(y = cum_faktisk),
+      size = 4,
+      color = "black"
+    )
+}
+
+# ---- STYLING ----
+p_week <- p_week +
   scale_color_manual(
     values = c(
       "ahead" = "#2ecc71",
@@ -254,6 +313,7 @@ p_week <- ggplot(week, aes(x = Dag)) +
       "future" = "#bdc3c7"
     )
   ) +
+  scale_y_continuous(limits = c(0, NA)) +
   
   theme_minimal(base_size = 12) +
   theme(
@@ -268,6 +328,13 @@ p_week <- ggplot(week, aes(x = Dag)) +
     y = "Km"
   )
 
+# ---- SAVE ----
+ggsave(
+  "docs/week_progress.svg",
+  p_week,
+  width = 8,
+  height = 4
+)
 ggsave(
   "docs/week_progress.svg",
   p_week,
@@ -371,6 +438,32 @@ for (i in 1:nrow(plan_view)) {
 }
 
 plan_html <- paste0(plan_html, "</table>")
+
+legend_html <- paste0(
+  "<div style='
+  margin-top:15px;
+  padding:12px;
+  background:#f8f9fb;
+  border-radius:10px;
+  font-size:13px;
+  line-height:1.5;
+'>
+
+<b>Træningstyper</b><br><br>
+
+<span style='color:#2ecc71;'>●</span> <b>Easy run</b><br>
+<small>Let, Z2, volumen</small><br><br>
+
+<span style='color:#e74c3c;'>●</span> <b>Kvalitet</b><br>
+<small>Tempo/intervaller (Z4)</small><br><br>
+
+<span style='color:#3498db;'>●</span> <b>Langtur</b><br>
+<small>Lang, rolig, udholdenhed</small><br>
+
+</div>"
+)
+
+
 
 # ---- PROGRESS BAR ----
 
@@ -555,6 +648,7 @@ th {
 <div class='card'>
 <h2>Aktuel uge</h2>
 ", week_html, "
+", legend_html, "
 </div>
 
 

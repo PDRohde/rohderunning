@@ -517,7 +517,7 @@ th {
   <div>
     <h1 style='margin:0;'>RohdeRunning – Endurance Project</h1>
     <div style='color:#666; font-size:14px;'>
-      Plant-based ultrarunner • Road to 100 miles
+      Road to a faster 100 miles
     </div>
   </div>
 </div>

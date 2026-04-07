@@ -51,7 +51,19 @@ plan <- plan %>%
     current = today >= Startdato_date & today < (Startdato_date + 7)
   )
 
-today_name <- weekdays(Sys.Date())
+today_name <- format(Sys.Date(), "%A")
+
+# oversæt til dansk hvis nødvendigt
+today_name <- dplyr::case_when(
+  today_name == "Monday" ~ "Mandag",
+  today_name == "Tuesday" ~ "Tirsdag",
+  today_name == "Wednesday" ~ "Onsdag",
+  today_name == "Thursday" ~ "Torsdag",
+  today_name == "Friday" ~ "Fredag",
+  today_name == "Saturday" ~ "Lørdag",
+  today_name == "Sunday" ~ "Søndag",
+  TRUE ~ today_name
+)
 
 week$Today <- ifelse(week$Dag == today_name, TRUE, FALSE)
 
@@ -205,62 +217,18 @@ week_display <- week %>%
   select(Dag, `Plan km`, `Faktisk km`, Type, Styrke, Mobilitet)
 # ---- GRAF -----
 
-# ---- DATA ----
-week <- week %>%
-  mutate(
-    plan_km = replace_na(`Plan km`, 0),
-    cum_plan = cumsum(plan_km),
-    
-    faktisk_km = `Faktisk km`,
-    
-    cum_faktisk_raw = cumsum(ifelse(is.na(faktisk_km), 0, faktisk_km)),
-    
-    # skjul fremtidige dage
-    cum_faktisk = ifelse(row_number() <= today_idx, cum_faktisk_raw, NA)
-  )
-
-# rækkefølge
-week$Dag <- factor(
-  week$Dag,
-  levels = c("Mandag","Tirsdag","Onsdag","Torsdag","Fredag","Lørdag","Søndag")
-)
-
-# ---- FIX: kun vurder status op til i dag ----
-today_idx <- max(which(week$Today), 1)
-
-week <- week %>%
-  mutate(
-    status = case_when(
-      row_number() > today_idx ~ "future",
-      cum_faktisk >= cum_plan ~ "ahead",
-      TRUE ~ "behind"
-    )
-  )
-
-# ---- PLOT ----
-# ---- DATA ----
-week <- week %>%
-  mutate(
-    plan_km = replace_na(`Plan km`, 0),
-    cum_plan = cumsum(plan_km),
-    
-    faktisk_km = `Faktisk km`,
-    
-    cum_faktisk_raw = cumsum(ifelse(is.na(faktisk_km), 0, faktisk_km))
-  )
-
-# rækkefølge
-week$Dag <- factor(
-  week$Dag,
-  levels = c("Mandag","Tirsdag","Onsdag","Torsdag","Fredag","Lørdag","Søndag")
-)
-
-# ---- FIND "I DAG" ----
+# ---- FIND "I DAG" (SKAL KOMME FØR mutate) ----
 today_idx <- ifelse(any(week$Today), max(which(week$Today)), 1)
 
-# ---- STATUS + VISNING ----
+# ---- DATA ----
 week <- week %>%
   mutate(
+    plan_km = replace_na(`Plan km`, 0),
+    cum_plan = cumsum(plan_km),
+    
+    faktisk_km = `Faktisk km`,
+    cum_faktisk_raw = cumsum(ifelse(is.na(faktisk_km), 0, faktisk_km)),
+    
     cum_faktisk = ifelse(row_number() <= today_idx, cum_faktisk_raw, NA),
     
     status = case_when(
@@ -273,7 +241,6 @@ week <- week %>%
 # ---- BASE PLOT ----
 p_week <- ggplot(week, aes(x = Dag)) +
   
-  # PLAN (stiplet)
   geom_line(
     aes(y = cum_plan, group = 1),
     linetype = "dashed",
@@ -281,23 +248,21 @@ p_week <- ggplot(week, aes(x = Dag)) +
     color = "#555555"
   ) +
   
-  # mål-linje
   geom_hline(
     yintercept = target_km,
     linetype = "dotted"
   )
 
 # ---- FAKTISK DATA ----
-week_actual <- week[!is.na(week$cum_faktisk), ]
+week_actual <- week[1:today_idx, ]
 
 if (nrow(week_actual) > 0) {
   
-  # lav startpunkt med samme kolonner
+  # startpunkt
   start_df <- week_actual[1, ]
   start_df$cum_faktisk <- 0
   start_df$Dag <- levels(week$Dag)[1]
   
-  # kombiner
   week_plot <- rbind(start_df, week_actual)
   
   # linje
@@ -308,6 +273,12 @@ if (nrow(week_actual) > 0) {
         aes(x = Dag, y = cum_faktisk, group = 1),
         linewidth = 2,
         color = "#2ecc71"
+      ) +
+      geom_area(
+        data = week_plot,
+        aes(x = Dag, y = cum_faktisk, group = 1),
+        fill = "#2ecc71",
+        alpha = 0.1
       )
   }
   
@@ -321,7 +292,7 @@ if (nrow(week_actual) > 0) {
     )
 }
 
-# ---- "I DAG" MARKERING ----
+# ---- "I DAG" ----
 today_point <- week[week$Today == TRUE & !is.na(week$cum_faktisk), ]
 
 if (nrow(today_point) > 0) {
@@ -332,28 +303,17 @@ if (nrow(today_point) > 0) {
       size = 4,
       color = "black"
     )
-  
-  # area (inde i if)
-  p_week <- p_week +
-    geom_area(
-      data = week_plot,
-      aes(x = Dag, y = cum_faktisk, group = 1),
-      fill = "#2ecc71",
-      alpha = 0.1
-    )
 }
 
 # ---- STYLING ----
 p_week <- p_week +
   scale_y_continuous(limits = c(0, NA)) +
-  
   theme_minimal(base_size = 12) +
   theme(
     legend.position = "none",
     plot.title = element_text(face = "bold"),
     panel.grid.minor = element_blank()
   ) +
-  
   labs(
     title = "Ugens progression",
     x = "",

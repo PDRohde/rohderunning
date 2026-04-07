@@ -49,8 +49,12 @@
 <polyline points='525.97,253.65 525.97,25.28 ' style='stroke-width: 1.16; stroke: #EBEBEB; stroke-linecap: butt;' />
 <polyline points='85.50,217.32 158.91,182.72 232.32,161.96 305.73,134.28 379.15,113.52 452.56,61.61 525.97,35.66 ' style='stroke-width: 2.13; stroke: #555555; stroke-dasharray: 11.38,11.38; stroke-linecap: butt;' />
 <line x1='41.45' y1='35.66' x2='570.02' y2='35.66' style='stroke-width: 1.16; stroke-dasharray: 1.55,4.66; stroke-linecap: butt;' />
-<polyline points='85.50,243.27 85.50,216.80 ' style='stroke-width: 4.27; stroke: #2ECC71; stroke-linecap: butt;' />
+<polyline points='85.50,243.27 85.50,216.80 158.91,177.11 ' style='stroke-width: 4.27; stroke: #2ECC71; stroke-linecap: butt;' />
+<polygon points='85.50,243.27 85.50,216.80 158.91,177.11 158.91,243.27 85.50,243.27 85.50,243.27 ' style='stroke-width: 0.00; stroke: none; stroke-linecap: butt; fill: #2ECC71; fill-opacity: 0.10;' />
+<polyline points='85.50,243.27 85.50,216.80 158.91,177.11 ' style='stroke-width: 1.16; stroke: none; stroke-linecap: butt;' />
 <circle cx='85.50' cy='216.80' r='3.59' style='stroke-width: 0.77; stroke: #2ECC71; fill: #2ECC71;' />
+<circle cx='158.91' cy='177.11' r='3.59' style='stroke-width: 0.77; stroke: #2ECC71; fill: #2ECC71;' />
+<circle cx='158.91' cy='177.11' r='4.65' style='stroke-width: 0.77; fill: #000000;' />
 </g>
 <g clip-path='url(#cpMC4wMHw1NzYuMDB8MC4wMHwyODguMDA=)'>
 <text x='36.07' y='246.71' text-anchor='end' style='font-size: 9.60px;fill: #4D4D4D; font-family: "Arial";' textLength='5.33px' lengthAdjust='spacingAndGlyphs'>0</text>

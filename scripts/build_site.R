@@ -180,14 +180,7 @@ full_plan_html <- knitr::kable(full_plan, format = "html")
 
 week_km <- sum(week$`Plan km`, na.rm = TRUE)
 actual_km <- sum(week$`Faktisk km`, na.rm = TRUE)
-
-target_km <- plan$`Planlagt km`[1]
-
-status <- case_when(
-  week_km > target_km + 10 ~ "⚠️ Overload",
-  week_km < target_km - 15 ~ "⚠️ For lav",
-  TRUE ~ "✅ OK"
-)
+target_km <- plan$`Planlagt km`[current_week]
 
 week$cum_km <- cumsum(replace_na(week$`Faktisk km`, 0))
 week$Dag <- factor(
@@ -221,22 +214,61 @@ week_display <- week %>%
 today_idx <- ifelse(any(week$Today), max(which(week$Today)), 1)
 
 # ---- DATA ----
+# korrekt rækkefølge på ugedage
+
+week$Dag <- factor(
+  week$Dag,
+  levels = c(
+    "Mandag",
+    "Tirsdag",
+    "Onsdag",
+    "Torsdag",
+    "Fredag",
+    "Lørdag",
+    "Søndag"
+  )
+)
+
+# sorter korrekt
+
+week <- week %>%
+  arrange(Dag)
+
+# cumulative data
 week <- week %>%
   mutate(
     plan_km = replace_na(`Plan km`, 0),
     cum_plan = cumsum(plan_km),
-    
-    faktisk_km = `Faktisk km`,
-    cum_faktisk_raw = cumsum(ifelse(is.na(faktisk_km), 0, faktisk_km)),
-    
-    cum_faktisk = ifelse(row_number() <= today_idx, cum_faktisk_raw, NA),
-    
-    status = case_when(
-      row_number() > today_idx ~ "future",
-      cum_faktisk >= cum_plan ~ "ahead",
-      TRUE ~ "behind"
+    faktisk_km = replace_na(`Faktisk km`, 0),
+    cum_faktisk_raw = cumsum(faktisk_km),
+    cum_faktisk = ifelse(
+      row_number() <= today_idx,
+      cum_faktisk_raw,
+      NA
     )
   )
+
+# dagens akkumulerede mål
+today_plan <- week$cum_plan[today_idx]
+
+# dagens akkumulerede faktiske km
+today_actual <- week$cum_faktisk_raw[today_idx]
+
+#status <- case_when(
+#  today_actual > today_plan + 10 ~ "⚠️ Overload",
+#  today_actual < today_plan - 10 ~ "⚠️ Bagud",
+#  TRUE ~ "✅ On track"
+#)
+#print(today_plan)
+
+#print(today_actual)
+ratio <- today_actual / today_plan
+
+status <- case_when(
+  ratio > 1.15 ~ "⚠️ Overload",
+  ratio < 0.90 ~ "⚠️ Bagud",
+  TRUE ~ "✅ On track"
+)
 
 # ---- BASE PLOT ----
 p_week <- ggplot(week, aes(x = Dag)) +
